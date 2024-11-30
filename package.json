@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@j2only/slide-unlock": "^0.5.9",
+    "@mapbox/mapbox-gl-directions": "^4.3.1",
+    "axios": "^1.7.8",
+    "mapbox-gl": "^3.8.0"
+  }
+}
