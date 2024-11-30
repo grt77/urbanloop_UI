@@ -35,7 +35,7 @@
           width="450"
         >
           <v-form>
-            <v-autocomplete
+            <v-combobox
               v-model="sourceLocation"
               :items="sourceSuggestions"
               label="Current Location (auto detect)"
@@ -44,12 +44,11 @@
               @click:append-inner="autoDetectLocation"
               @input="fetchSourceSuggestions"
             />
-            <v-autocomplete
+            <v-combobox
               v-model="destinationLocation"
               :items="destinationSuggestions"
               label="Destination"
               prepend-inner-icon="mdi-magnify"
-              @input="fetchDestinationSuggestions"
               @update:modelValue="destinationLocation = $event"
             />
             <v-text-field
@@ -77,24 +76,24 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, ref } from "vue";
 import mapboxgl from "mapbox-gl";
 import MapboxDirections from "@mapbox/mapbox-gl-directions/dist/mapbox-gl-directions";
 import axios from "axios";
-
-const destinationLocation = ref("");
 
 export default defineComponent({
   name: "MapView",
   data() {
     return {
       sourceLocation: "",
-      destinationLocation,
+      destinationLocation: "",
       mobileNumber: "",
       sourceSuggestions: [] as string[],
       destinationSuggestions: [] as string[],
       map: null as mapboxgl.Map | null,
       directions: null as MapboxDirections | null,
+      latitude: null as number | null,
+      longitude: null as number | null,
     };
   },
   watch: {
@@ -109,16 +108,19 @@ export default defineComponent({
     this.map = new mapboxgl.Map({
       container: "map",
       style: "mapbox://styles/mapbox/streets-v12",
-      center: [-79.4512, 43.6568],
+      center: [-79.4512, 43.6568], // Default center before geolocation
       zoom: 13,
     });
 
     // Add Directions Control
     this.directions = new MapboxDirections({
       accessToken: mapboxgl.accessToken,
-      controls: { profileSwitcher: false, instructions: false },
+      controls: { profileSwitcher: false, instructions: false, inputs: false   },
     });
     this.map.addControl(this.directions, "top-left");
+
+    // Automatically detect the current location
+    this.autoDetectLocation();
   },
   methods: {
     // Fetch current location using Geolocation API
@@ -127,8 +129,11 @@ export default defineComponent({
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
+            this.latitude = latitude;
+            this.longitude = longitude;
             this.sourceLocation = `${latitude}, ${longitude}`;
-            this.reverseGeocode(latitude, longitude);
+            this.reverseGeocode(latitude, longitude);  // Optional: Reverse geocode to get address
+            this.centerMapOnLocation(latitude, longitude);  // Center map on detected location
           },
           (error) => {
             console.error("Error detecting location:", error);
@@ -156,6 +161,14 @@ export default defineComponent({
       }
     },
 
+    // Center the map on the user's current location
+    centerMapOnLocation(lat: number, lng: number) {
+      if (this.map) {
+        this.map.setCenter([lng, lat]);
+        this.map.setZoom(13);  // Optionally, adjust zoom level
+      }
+    },
+
     // Fetch autocomplete suggestions for source
     async fetchSourceSuggestions(query: string) {
       if (!query) return;
@@ -166,7 +179,7 @@ export default defineComponent({
             params: {
               access_token: mapboxgl.accessToken,
               autocomplete: true,
-              limit: 5,
+              limit: 20,
             },
           }
         );
@@ -178,7 +191,6 @@ export default defineComponent({
 
     // Fetch autocomplete suggestions for destination
     async fetchDestinationSuggestions(query: string) {
-      console.log('query check', destinationLocation.value);
       if (!query) return;
       try {
         const response = await axios.get(
@@ -187,7 +199,7 @@ export default defineComponent({
             params: {
               access_token: mapboxgl.accessToken,
               autocomplete: true,
-              limit: 5,
+              limit: 20,
             },
           }
         );
@@ -201,7 +213,7 @@ export default defineComponent({
     initiateRideBooking() {
       console.log("Ride booking initiated");
       this.directions?.setOrigin(this.sourceLocation);
-      this.directions?.setDestination(destinationLocation.value);
+      this.directions?.setDestination(this.destinationLocation);
     },
   },
 });
